@@ -105,16 +105,72 @@
       margin-top: 2px;
     }
 
-    /* มือถือ: ย้ายลงล่างกันบังจอ/ปุ่มตะกร้า */
+    /* Bubble (มือถือ: แตะแล้วขึ้นป้าย 2 วิ) */
+    .line-oa-bubble {
+      position: absolute;
+      right: 56px; /* อยู่ซ้ายของปุ่ม */
+      top: 50%;
+      transform: translateY(-50%) scale(0.98);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+      background: rgba(255,255,255,0.96);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.16);
+      border-radius: 14px;
+      padding: 10px 12px;
+      min-width: 190px;
+      max-width: 230px;
+    }
+    .line-oa-bubble.show {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    .line-oa-bubble:after {
+      content: "";
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      border-left: 8px solid rgba(255,255,255,0.96);
+      filter: drop-shadow(0 0 1px rgba(16,185,129,0.25));
+    }
+    .line-oa-bubble-title { font-weight: 800; font-size: 12px; color: #111827; }
+    .line-oa-bubble-sub { font-size: 11px; color: #4b5563; margin-top: 2px; line-height: 1.15; }
+    .line-oa-bubble-cta { font-size: 11px; color: #16a34a; font-weight: 700; margin-top: 6px; }
+
+    /* มือถือ: ไม่ให้ปุ่มใหญ่บังฟอร์ม -> เหลือไอคอนเล็ก + แตะแล้วขึ้นป้าย 2 วิ */
     @media (max-width: 480px) {
       .line-float-side {
         right: 12px;
         top: auto;
-        bottom: 160px; /* เผื่อไม่ชน Floating Cart Button */
+        bottom: 120px; /* ลดการบัง input + เผื่อปุ่มตะกร้าด้านล่าง */
         transform: none;
       }
-      .line-float-btn:hover {
-        transform: scale(1.02);
+
+      .line-float-btn {
+        gap: 0;
+        padding: 10px;
+        border-radius: 999px;
+      }
+
+      .line-float-text {
+        display: none; /* มือถือซ่อนข้อความยาว */
+      }
+
+      .line-float-icon {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+      }
+
+      /* ซ่อน soft hint ใต้ปุ่มบนมือถือ */
+      #line-oa-float .line-soft-hint {
+        display: none;
       }
     }
   </style>
@@ -353,26 +409,33 @@
   </button>
 </div>
 
-<!-- Floating LINE OA Button (แสดงเฉพาะหน้า Payment) -->
-<div id="line-oa-float" class="line-float-side hidden" aria-label="LINE OA Floating Button">
-  <a class="line-float-btn"
+<!-- Floating LINE OA Button (แสดงทุกหน้า) -->
+<div id="line-oa-float" class="line-float-side" aria-label="LINE OA Floating Button">
+  <!-- bubble มือถือ (แตะแล้วขึ้น 2 วิ) -->
+  <div id="line-oa-bubble" class="line-oa-bubble" role="status" aria-live="polite">
+    <div class="line-oa-bubble-title">ทัก LINE ร้าน Verve Juice</div>
+    <div class="line-oa-bubble-sub">สอบถามได้ทุกเรื่อง • สั่งนอกพื้นที่ • เปลี่ยนรอบส่ง</div>
+    <div class="line-oa-bubble-cta">แตะอีกครั้งเพื่อเปิด LINE</div>
+  </div>
+
+  <a id="line-oa-link"
+     class="line-float-btn"
      href="https://lin.ee/Z5hDNAQ"
      target="_blank"
      rel="noopener"
-     title="อยู่นอกพื้นที่จัดส่ง? กดทัก LINE เพื่อสอบถามก่อนสั่ง">
+     title="ทัก LINE ร้าน Verve Juice">
     <div class="line-float-icon">
       <i class="fa-brands fa-line"></i>
     </div>
     <div class="line-float-text">
-      <div class="line-float-title">อยู่นอกพื้นที่จัดส่ง?</div>
-      <div class="line-float-sub">ทัก LINE ก่อน แล้วค่อยสั่ง</div>
+      <div class="line-float-title">ทัก LINE ร้าน</div>
+      <div class="line-float-sub">สอบถาม / สั่ง / เปลี่ยนรอบส่ง</div>
     </div>
   </a>
 
-  <!-- Soft warning text -->
-  <div class="mt-2 text-[11px] text-gray-500 text-center leading-snug">
-    * กรณีอยู่นอกโซนจัดส่ง<br>
-    แนะนำสอบถามก่อนชำระเงิน
+  <!-- Soft hint (เดสก์ท็อปเห็น / มือถือซ่อน) -->
+  <div class="line-soft-hint mt-2 text-[11px] text-gray-500 text-center leading-snug">
+    * ถ้าอยู่นอกโซนจัดส่ง แนะนำทักมาก่อนชำระเงิน
   </div>
 </div>
 
@@ -546,6 +609,41 @@ renderCartSidebarContent = () => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  // ===== LINE OA: มือถือแตะแล้วขึ้นป้าย 2 วิ (แตะอีกทีถึงเปิด LINE) =====
+  const lineLink = getEl('line-oa-link');
+  const lineBubble = getEl('line-oa-bubble');
+  let bubbleTimer = null;
+  let armedToOpen = false;
+
+  const isMobile = () => window.matchMedia('(max-width: 480px)').matches;
+
+  const showLineBubble = () => {
+    if (!lineBubble) return;
+    lineBubble.classList.add('show');
+    armedToOpen = true;
+
+    clearTimeout(bubbleTimer);
+    bubbleTimer = setTimeout(() => {
+      lineBubble.classList.remove('show');
+      armedToOpen = false;
+    }, 2000);
+  };
+
+  if (lineLink) {
+    lineLink.addEventListener('click', (e) => {
+      // Desktop: เปิด LINE ได้เลย
+      if (!isMobile()) return;
+
+      // Mobile: tap แรกโชว์ bubble 2 วิ + กันไม่ให้เด้งออกนอกเว็บ
+      if (!armedToOpen) {
+        e.preventDefault();
+        showLineBubble();
+        return;
+      }
+      // tap ซ้ำภายใน 2 วิ -> ให้เปิด LINE ได้ตามปกติ
+    }, { passive: false });
+  }
+
   // CONFIG: ตั้งค่าพื้นที่จัดส่ง + วันในสัปดาห์ที่สามารถไปส่งได้
   // getDay() ของ JS: 0=อาทิตย์, 1=จันทร์, 2=อังคาร, 3=พุธ, 4=พฤหัส, 5=ศุกร์, 6=เสาร์
   const deliveryConfig = {
@@ -559,14 +657,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // ถ้าอนาคตมีพื้นที่อื่น เพิ่ม key เพิ่มได้ เช่น:
     // otherArea: { label: 'พื้นที่อื่น', weekdays: [2,5] }
-  };
-
-  // ===== LINE OA Floating toggle (แสดงเฉพาะหน้า Payment) =====
-  const lineOAFloatEl = getEl('line-oa-float');
-  const toggleLineOAFloat = () => {
-    const isPaymentPage = !paymentSection.classList.contains('hidden');
-    if (!lineOAFloatEl) return;
-    lineOAFloatEl.classList.toggle('hidden', !isPaymentPage);
   };
 
   // จำนวนสัปดาห์ล่วงหน้าที่จะแสดง (เหมือน “อาทิตย์ต่ออาทิตย์” ไม่โชว์ยาวทั้งเดือน)
@@ -827,9 +917,6 @@ document.addEventListener('DOMContentLoaded', () => {
     paymentSection.classList.remove('hidden');
     floatingCartBtnEl.classList.add('hidden');
 
-    // NEW: ให้ LINE OA โชว์เฉพาะหน้า Payment
-    toggleLineOAFloat();
-
     requestAnimationFrame(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       customerNameEl.focus({ preventScroll: true });
@@ -842,9 +929,6 @@ document.addEventListener('DOMContentLoaded', () => {
     paymentSection.classList.add('hidden');
     orderFormSection.classList.remove('hidden');
     renderFloatingCart();
-
-    // NEW: กลับหน้าเมนู -> ซ่อน LINE OA
-    toggleLineOAFloat();
   });
 
   modalOverlayEl.addEventListener('click', closeItemModal);
@@ -916,9 +1000,6 @@ document.addEventListener('DOMContentLoaded', () => {
       paymentSection.classList.add('hidden');
       confirmationSection.classList.remove('hidden');
       floatingCartBtnEl.classList.add('hidden');
-
-      // NEW: ออกจากหน้า payment แล้ว -> ซ่อน LINE OA
-      toggleLineOAFloat();
     } catch(err){
       console.error('Error sending data:', err);
       showMessageBox('เกิดข้อผิดพลาดในการส่งข้อมูล','red');
@@ -963,9 +1044,6 @@ document.addEventListener('DOMContentLoaded', () => {
   updateTotal();
   // แรกเข้าให้ขึ้นข้อความ “กรุณาเลือกสถานที่จัดส่งก่อน”
   renderDeliveryDates();
-
-  // NEW: ตอนโหลดหน้าให้ซ่อน/โชว์ให้ถูกตามหน้าปัจจุบัน
-  toggleLineOAFloat();
 });
 </script>
 </body>
