@@ -638,112 +638,102 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
   };
 
-    // ===== Edge-only Drag LINE OA (อยู่ได้แค่ขอบซ้าย/ขวา) =====
-  const lineFloat = getEl('line-oa-float');
+    // ===== Long-Press Edge Drag LINE OA (กดค้างก่อนถึงย้ายได้) =====
+const lineFloat = getEl('line-oa-float');
 
-  if (lineFloat) {
-    // ใช้ left/top เพื่อคุมตำแหน่งเอง
-    lineFloat.style.right = 'auto';
-    lineFloat.style.bottom = 'auto';
-    lineFloat.style.top = 'auto';
+if (lineFloat) {
+  lineFloat.style.right = 'auto';
+  lineFloat.style.bottom = 'auto';
+  lineFloat.style.top = 'auto';
 
-    const GAP = 8; // ระยะห่างขอบจอ
-    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+  const GAP = 8;
+  const LONG_PRESS_MS = 400; // เวลากดค้างก่อนเริ่มย้าย
+  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+  const pickEdge = (x) => (x < window.innerWidth / 2 ? 'left' : 'right');
 
-    const getBounds = () => {
-      const rect = lineFloat.getBoundingClientRect();
-      return {
-        w: rect.width,
-        h: rect.height,
-        maxY: window.innerHeight - rect.height - GAP,
-        leftX: GAP,
-        rightX: window.innerWidth - rect.width - GAP,
-      };
-    };
+  const applyEdgeY = (edge, y) => {
+    const rect = lineFloat.getBoundingClientRect();
+    const maxY = window.innerHeight - rect.height - GAP;
+    const top = clamp(y, GAP, maxY);
+    const left =
+      edge === 'left'
+        ? GAP
+        : window.innerWidth - rect.width - GAP;
 
-    const applyEdgeY = (edge, y) => {
-      const b = getBounds();
-      const x = edge === 'left' ? b.leftX : b.rightX;
-      const cy = clamp(y, GAP, b.maxY);
-      lineFloat.style.left = `${x}px`;
-      lineFloat.style.top = `${cy}px`;
-      return { x, y: cy };
-    };
+    lineFloat.style.left = `${left}px`;
+    lineFloat.style.top = `${top}px`;
+    return { edge, y: top };
+  };
 
-    const pickEdgeFromX = (x) => (x < window.innerWidth / 2 ? 'left' : 'right');
-
-    // โหลดตำแหน่งที่เคยบันทึกไว้
-    try {
-      const saved = JSON.parse(localStorage.getItem('lineOA_pos') || 'null');
-      if (saved && typeof saved.edge === 'string' && typeof saved.y === 'number') {
-        requestAnimationFrame(() => applyEdgeY(saved.edge, saved.y));
-      } else {
-        requestAnimationFrame(() => applyEdgeY('right', window.innerHeight - 180));
-      }
-    } catch {
-      requestAnimationFrame(() => applyEdgeY('right', window.innerHeight - 180));
+  // restore saved position
+  try {
+    const saved = JSON.parse(localStorage.getItem('lineOA_pos') || 'null');
+    if (saved?.edge) {
+      requestAnimationFrame(() => applyEdgeY(saved.edge, saved.y));
+    } else {
+      requestAnimationFrame(() =>
+        applyEdgeY('right', window.innerHeight - 180)
+      );
     }
+  } catch {
+    requestAnimationFrame(() =>
+      applyEdgeY('right', window.innerHeight - 180)
+    );
+  }
 
-    let dragging = false;
-    let startX = 0, startY = 0;
-    let baseTop = 0;
-    let edge = 'right';
-    const DRAG_THRESHOLD = 6;
+  let pressTimer = null;
+  let dragging = false;
+  let startY = 0;
+  let baseTop = 0;
+  let edge = 'right';
 
-    lineFloat.addEventListener('pointerdown', (e) => {
-      dragging = false;
-      startX = e.clientX;
-      startY = e.clientY;
+  lineFloat.addEventListener('pointerdown', (e) => {
+    dragging = false;
+    startY = e.clientY;
+    baseTop = lineFloat.getBoundingClientRect().top;
+    edge = pickEdge(e.clientX);
 
-      const rect = lineFloat.getBoundingClientRect();
-      baseTop = rect.top;
-
-      // เลือกฝั่งจากตำแหน่งปัจจุบัน
-      edge = pickEdgeFromX(rect.left + rect.width / 2);
-
-      lineFloat.setPointerCapture?.(e.pointerId);
-    });
-
-    window.addEventListener('pointermove', (e) => {
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-
-      if (!dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    // 👉 เริ่มนับ long-press
+    pressTimer = setTimeout(() => {
       dragging = true;
       lineFloat.classList.add('is-dragging');
+      lineFloat.setPointerCapture?.(e.pointerId);
+    }, LONG_PRESS_MS);
+  });
 
-      // ขณะลาก: ล็อค X ติดขอบเสมอ -> ขยับได้แค่ Y
-      e.preventDefault();
-      const nextTop = baseTop + dy;
+  window.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
 
-      // สลับซ้าย/ขวาเมื่อเลื่อนข้ามครึ่งจอ
-      edge = pickEdgeFromX(e.clientX);
+    e.preventDefault();
+    const dy = e.clientY - startY;
+    applyEdgeY(edge, baseTop + dy);
+  }, { passive: false });
 
-      applyEdgeY(edge, nextTop);
-    }, { passive: false });
+  window.addEventListener('pointerup', () => {
+    clearTimeout(pressTimer);
 
-    window.addEventListener('pointerup', () => {
-      if (dragging) {
-        const rect = lineFloat.getBoundingClientRect();
-        const currentEdge = pickEdgeFromX(rect.left + rect.width / 2);
-        const pos = applyEdgeY(currentEdge, rect.top);
-
-        localStorage.setItem('lineOA_pos', JSON.stringify({
-          edge: currentEdge,
-          y: pos.y
-        }));
-      }
-      dragging = false;
-      lineFloat.classList.remove('is-dragging');
-    });
-
-    window.addEventListener('resize', () => {
+    if (dragging) {
       const rect = lineFloat.getBoundingClientRect();
-      const currentEdge = pickEdgeFromX(rect.left + rect.width / 2);
-      const pos = applyEdgeY(currentEdge, rect.top);
-      localStorage.setItem('lineOA_pos', JSON.stringify({ edge: currentEdge, y: pos.y }));
-    });
-  }
+      const finalEdge = pickEdge(rect.left + rect.width / 2);
+      const pos = applyEdgeY(finalEdge, rect.top);
+
+      localStorage.setItem(
+        'lineOA_pos',
+        JSON.stringify({ edge: pos.edge, y: pos.y })
+      );
+    }
+
+    dragging = false;
+    lineFloat.classList.remove('is-dragging');
+  });
+
+  window.addEventListener('resize', () => {
+    const rect = lineFloat.getBoundingClientRect();
+    const finalEdge = pickEdge(rect.left + rect.width / 2);
+    const pos = applyEdgeY(finalEdge, rect.top);
+    localStorage.setItem('lineOA_pos', JSON.stringify(pos));
+  });
+}
 
   if (lineLink) {
     lineLink.addEventListener('click', (e) => {
@@ -1171,4 +1161,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
