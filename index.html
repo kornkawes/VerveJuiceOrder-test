@@ -173,6 +173,15 @@
         display: none;
       }
     }
+
+    /* ===== Draggable + Snap LINE OA ===== */
+    #line-oa-float{
+      touch-action: none; /* กัน scroll ตอนลาก */
+    }
+    #line-oa-float.is-dragging{
+      user-select: none;
+      cursor: grabbing;
+    }
   </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
@@ -629,10 +638,105 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
   };
 
+  // ===== Draggable + Snap LINE OA (เหมือน Chat Head) =====
+  const lineFloat = getEl('line-oa-float');
+
+  if (lineFloat) {
+    // ใช้ left/top แทน right/top/bottom เดิม (เพื่อให้ลากได้)
+    lineFloat.style.right = 'auto';
+    lineFloat.style.bottom = 'auto';
+    lineFloat.style.top = 'auto';
+
+    const GAP = 8; // ระยะห่างจากขอบจอ
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+    const applyPos = (x, y) => {
+      const rect = lineFloat.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width - GAP;
+      const maxY = window.innerHeight - rect.height - GAP;
+      lineFloat.style.left = clamp(x, GAP, maxX) + 'px';
+      lineFloat.style.top  = clamp(y, GAP, maxY) + 'px';
+    };
+
+    const snapToEdge = () => {
+      const rect = lineFloat.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+
+      // snap ซ้าย/ขวาอัตโนมัติ (ใกล้ฝั่งไหน ไปฝั่งนั้น)
+      const snapX = (cx < window.innerWidth / 2)
+        ? GAP
+        : (window.innerWidth - rect.width - GAP);
+
+      // y คงไว้ แต่ clamp ให้อยู่ในจอ
+      const snapY = clamp(rect.top, GAP, window.innerHeight - rect.height - GAP);
+
+      applyPos(snapX, snapY);
+      localStorage.setItem('lineOA_pos', JSON.stringify({ x: snapX, y: snapY }));
+    };
+
+    // โหลดตำแหน่งที่เคยบันทึกไว้
+    try {
+      const saved = JSON.parse(localStorage.getItem('lineOA_pos') || 'null');
+      if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+        requestAnimationFrame(() => applyPos(saved.x, saved.y));
+      } else {
+        requestAnimationFrame(() => applyPos(window.innerWidth - 80, window.innerHeight - 180));
+      }
+    } catch {
+      requestAnimationFrame(() => applyPos(window.innerWidth - 80, window.innerHeight - 180));
+    }
+
+    let dragging = false;
+    let startX = 0, startY = 0, baseX = 0, baseY = 0;
+    const DRAG_THRESHOLD = 6;
+
+    lineFloat.addEventListener('pointerdown', (e) => {
+      dragging = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = lineFloat.getBoundingClientRect();
+      baseX = rect.left;
+      baseY = rect.top;
+      lineFloat.setPointerCapture?.(e.pointerId);
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      if (!dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      dragging = true;
+      lineFloat.classList.add('is-dragging');
+
+      e.preventDefault();
+      applyPos(baseX + dx, baseY + dy);
+    }, { passive: false });
+
+    window.addEventListener('pointerup', () => {
+      if (dragging) snapToEdge();
+      dragging = false;
+      lineFloat.classList.remove('is-dragging');
+    });
+
+    window.addEventListener('resize', () => {
+      const rect = lineFloat.getBoundingClientRect();
+      applyPos(rect.left, rect.top);
+      // resize แล้ว snap กันหลุดจอ
+      snapToEdge();
+    });
+  }
+
   if (lineLink) {
     lineLink.addEventListener('click', (e) => {
       // Desktop: เปิด LINE ได้เลย
       if (!isMobile()) return;
+
+      // กัน “ลาก” แล้วไป trigger bubble/เปิดลิงก์
+      const floatEl = getEl('line-oa-float');
+      if (floatEl && floatEl.classList.contains('is-dragging')) {
+        e.preventDefault();
+        return;
+      }
 
       // Mobile: tap แรกโชว์ bubble 2 วิ + กันไม่ให้เด้งออกนอกเว็บ
       if (!armedToOpen) {
