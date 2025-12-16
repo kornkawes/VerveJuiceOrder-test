@@ -146,11 +146,11 @@
     /* มือถือ: ไม่ให้ปุ่มใหญ่บังฟอร์ม -> เหลือไอคอนเล็ก + แตะแล้วขึ้นป้าย 2 วิ */
     @media (max-width: 480px) {
       .line-float-side {
-        right: 12px;
-        top: auto;
-        bottom: 120px; /* ลดการบัง input + เผื่อปุ่มตะกร้าด้านล่าง */
-        transform: none;
-      }
+  right: 12px;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+}
 
       .line-float-btn {
         gap: 0;
@@ -173,16 +173,7 @@
         display: none;
       }
     }
-
-    /* ===== Edge-only Drag LINE OA (ลากได้แค่ขึ้น-ลงตามขอบ) ===== */
-#line-oa-float{
-  touch-action: none; /* กัน scroll ตอนลาก */
-}
-#line-oa-float.is-dragging{
-  user-select: none;
-  cursor: grabbing;
-}
-  </style>
+</style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
@@ -638,102 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
   };
 
-    // ===== Long-Press Edge Drag LINE OA (กดค้างก่อนถึงย้ายได้) =====
-const lineFloat = getEl('line-oa-float');
 
-if (lineFloat) {
-  lineFloat.style.right = 'auto';
-  lineFloat.style.bottom = 'auto';
-  lineFloat.style.top = 'auto';
-
-  const GAP = 8;
-  const LONG_PRESS_MS = 400; // เวลากดค้างก่อนเริ่มย้าย
-  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
-  const pickEdge = (x) => (x < window.innerWidth / 2 ? 'left' : 'right');
-
-  const applyEdgeY = (edge, y) => {
-    const rect = lineFloat.getBoundingClientRect();
-    const maxY = window.innerHeight - rect.height - GAP;
-    const top = clamp(y, GAP, maxY);
-    const left =
-      edge === 'left'
-        ? GAP
-        : window.innerWidth - rect.width - GAP;
-
-    lineFloat.style.left = `${left}px`;
-    lineFloat.style.top = `${top}px`;
-    return { edge, y: top };
-  };
-
-  // restore saved position
-  try {
-    const saved = JSON.parse(localStorage.getItem('lineOA_pos') || 'null');
-    if (saved?.edge) {
-      requestAnimationFrame(() => applyEdgeY(saved.edge, saved.y));
-    } else {
-      requestAnimationFrame(() =>
-        applyEdgeY('right', window.innerHeight - 180)
-      );
-    }
-  } catch {
-    requestAnimationFrame(() =>
-      applyEdgeY('right', window.innerHeight - 180)
-    );
-  }
-
-  let pressTimer = null;
-  let dragging = false;
-  let startY = 0;
-  let baseTop = 0;
-  let edge = 'right';
-
-  lineFloat.addEventListener('pointerdown', (e) => {
-    dragging = false;
-    startY = e.clientY;
-    baseTop = lineFloat.getBoundingClientRect().top;
-    edge = pickEdge(e.clientX);
-
-    // 👉 เริ่มนับ long-press
-    pressTimer = setTimeout(() => {
-      dragging = true;
-      lineFloat.classList.add('is-dragging');
-      lineFloat.setPointerCapture?.(e.pointerId);
-    }, LONG_PRESS_MS);
-  });
-
-  window.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-
-    e.preventDefault();
-    const dy = e.clientY - startY;
-    applyEdgeY(edge, baseTop + dy);
-  }, { passive: false });
-
-  window.addEventListener('pointerup', () => {
-    clearTimeout(pressTimer);
-
-    if (dragging) {
-      const rect = lineFloat.getBoundingClientRect();
-      const finalEdge = pickEdge(rect.left + rect.width / 2);
-      const pos = applyEdgeY(finalEdge, rect.top);
-
-      localStorage.setItem(
-        'lineOA_pos',
-        JSON.stringify({ edge: pos.edge, y: pos.y })
-      );
-    }
-
-    dragging = false;
-    lineFloat.classList.remove('is-dragging');
-  });
-
-  window.addEventListener('resize', () => {
-    const rect = lineFloat.getBoundingClientRect();
-    const finalEdge = pickEdge(rect.left + rect.width / 2);
-    const pos = applyEdgeY(finalEdge, rect.top);
-    localStorage.setItem('lineOA_pos', JSON.stringify(pos));
-  });
-}
 
   if (lineLink) {
     lineLink.addEventListener('click', (e) => {
@@ -1161,4 +1057,3 @@ if (lineFloat) {
 </script>
 </body>
 </html>
-
