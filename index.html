@@ -174,14 +174,14 @@
       }
     }
 
-    /* ===== Draggable + Snap LINE OA ===== */
-    #line-oa-float{
-      touch-action: none; /* กัน scroll ตอนลาก */
-    }
-    #line-oa-float.is-dragging{
-      user-select: none;
-      cursor: grabbing;
-    }
+    /* ===== Edge-only Drag LINE OA (ลากได้แค่ขึ้น-ลงตามขอบ) ===== */
+#line-oa-float{
+  touch-action: none; /* กัน scroll ตอนลาก */
+}
+#line-oa-float.is-dragging{
+  user-select: none;
+  cursor: grabbing;
+}
   </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
@@ -638,65 +638,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
   };
 
-  // ===== Draggable + Snap LINE OA (เหมือน Chat Head) =====
+    // ===== Edge-only Drag LINE OA (อยู่ได้แค่ขอบซ้าย/ขวา) =====
   const lineFloat = getEl('line-oa-float');
 
   if (lineFloat) {
-    // ใช้ left/top แทน right/top/bottom เดิม (เพื่อให้ลากได้)
+    // ใช้ left/top เพื่อคุมตำแหน่งเอง
     lineFloat.style.right = 'auto';
     lineFloat.style.bottom = 'auto';
     lineFloat.style.top = 'auto';
 
-    const GAP = 8; // ระยะห่างจากขอบจอ
+    const GAP = 8; // ระยะห่างขอบจอ
     const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
-    const applyPos = (x, y) => {
+    const getBounds = () => {
       const rect = lineFloat.getBoundingClientRect();
-      const maxX = window.innerWidth - rect.width - GAP;
-      const maxY = window.innerHeight - rect.height - GAP;
-      lineFloat.style.left = clamp(x, GAP, maxX) + 'px';
-      lineFloat.style.top  = clamp(y, GAP, maxY) + 'px';
+      return {
+        w: rect.width,
+        h: rect.height,
+        maxY: window.innerHeight - rect.height - GAP,
+        leftX: GAP,
+        rightX: window.innerWidth - rect.width - GAP,
+      };
     };
 
-    const snapToEdge = () => {
-      const rect = lineFloat.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-
-      // snap ซ้าย/ขวาอัตโนมัติ (ใกล้ฝั่งไหน ไปฝั่งนั้น)
-      const snapX = (cx < window.innerWidth / 2)
-        ? GAP
-        : (window.innerWidth - rect.width - GAP);
-
-      // y คงไว้ แต่ clamp ให้อยู่ในจอ
-      const snapY = clamp(rect.top, GAP, window.innerHeight - rect.height - GAP);
-
-      applyPos(snapX, snapY);
-      localStorage.setItem('lineOA_pos', JSON.stringify({ x: snapX, y: snapY }));
+    const applyEdgeY = (edge, y) => {
+      const b = getBounds();
+      const x = edge === 'left' ? b.leftX : b.rightX;
+      const cy = clamp(y, GAP, b.maxY);
+      lineFloat.style.left = `${x}px`;
+      lineFloat.style.top = `${cy}px`;
+      return { x, y: cy };
     };
+
+    const pickEdgeFromX = (x) => (x < window.innerWidth / 2 ? 'left' : 'right');
 
     // โหลดตำแหน่งที่เคยบันทึกไว้
     try {
       const saved = JSON.parse(localStorage.getItem('lineOA_pos') || 'null');
-      if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
-        requestAnimationFrame(() => applyPos(saved.x, saved.y));
+      if (saved && typeof saved.edge === 'string' && typeof saved.y === 'number') {
+        requestAnimationFrame(() => applyEdgeY(saved.edge, saved.y));
       } else {
-        requestAnimationFrame(() => applyPos(window.innerWidth - 80, window.innerHeight - 180));
+        requestAnimationFrame(() => applyEdgeY('right', window.innerHeight - 180));
       }
     } catch {
-      requestAnimationFrame(() => applyPos(window.innerWidth - 80, window.innerHeight - 180));
+      requestAnimationFrame(() => applyEdgeY('right', window.innerHeight - 180));
     }
 
     let dragging = false;
-    let startX = 0, startY = 0, baseX = 0, baseY = 0;
+    let startX = 0, startY = 0;
+    let baseTop = 0;
+    let edge = 'right';
     const DRAG_THRESHOLD = 6;
 
     lineFloat.addEventListener('pointerdown', (e) => {
       dragging = false;
       startX = e.clientX;
       startY = e.clientY;
+
       const rect = lineFloat.getBoundingClientRect();
-      baseX = rect.left;
-      baseY = rect.top;
+      baseTop = rect.top;
+
+      // เลือกฝั่งจากตำแหน่งปัจจุบัน
+      edge = pickEdgeFromX(rect.left + rect.width / 2);
+
       lineFloat.setPointerCapture?.(e.pointerId);
     });
 
@@ -708,21 +712,36 @@ document.addEventListener('DOMContentLoaded', () => {
       dragging = true;
       lineFloat.classList.add('is-dragging');
 
+      // ขณะลาก: ล็อค X ติดขอบเสมอ -> ขยับได้แค่ Y
       e.preventDefault();
-      applyPos(baseX + dx, baseY + dy);
+      const nextTop = baseTop + dy;
+
+      // สลับซ้าย/ขวาเมื่อเลื่อนข้ามครึ่งจอ
+      edge = pickEdgeFromX(e.clientX);
+
+      applyEdgeY(edge, nextTop);
     }, { passive: false });
 
     window.addEventListener('pointerup', () => {
-      if (dragging) snapToEdge();
+      if (dragging) {
+        const rect = lineFloat.getBoundingClientRect();
+        const currentEdge = pickEdgeFromX(rect.left + rect.width / 2);
+        const pos = applyEdgeY(currentEdge, rect.top);
+
+        localStorage.setItem('lineOA_pos', JSON.stringify({
+          edge: currentEdge,
+          y: pos.y
+        }));
+      }
       dragging = false;
       lineFloat.classList.remove('is-dragging');
     });
 
     window.addEventListener('resize', () => {
       const rect = lineFloat.getBoundingClientRect();
-      applyPos(rect.left, rect.top);
-      // resize แล้ว snap กันหลุดจอ
-      snapToEdge();
+      const currentEdge = pickEdgeFromX(rect.left + rect.width / 2);
+      const pos = applyEdgeY(currentEdge, rect.top);
+      localStorage.setItem('lineOA_pos', JSON.stringify({ edge: currentEdge, y: pos.y }));
     });
   }
 
@@ -1152,3 +1171,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
