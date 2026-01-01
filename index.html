@@ -400,10 +400,9 @@
 
   </div>
 
-  <!-- FLOATING CART DOCK -->
-  <!-- MODIFIED: Hide initially (translate-y-full and hidden class) -->
-  <div id="floating-cart-container" class="fixed bottom-6 left-0 right-0 z-40 pointer-events-none translate-y-full transition-transform duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) hidden">
-     <div class="max-w-xl mx-auto px-4">
+  <!-- FLOATING CART DOCK (FIXED TO MATCH testver EXACTLY) -->
+  <div id="floating-cart-container" class="fixed bottom-0 left-0 right-0 z-40 pointer-events-none translate-y-full transition-transform duration-300">
+     <div class="max-w-xl mx-auto px-4 pb-6">
          <div id="open-cart-btn" class="pointer-events-auto glass-dock rounded-[24px] p-3 pr-4 flex items-center justify-between cursor-pointer hover:bg-white transition-all group ring-1 ring-white/50 shadow-2xl shadow-emerald-900/10">
              <div class="flex items-center gap-4">
                  <div class="relative">
@@ -702,15 +701,11 @@ window.updateTotal = () => {
     
     const onPaymentPage = !getEl('payment-section').classList.contains('hidden');
     
-    // MODIFIED LOGIC: Hide Cart Dock if Empty OR on Payment Page
+    // MODIFIED LOGIC: Match testver exactly
     if(totalItems > 0 && !onPaymentPage) {
-        dockContainer.classList.remove('translate-y-full', 'hidden');
+        dockContainer.classList.remove('translate-y-full');
     } else {
         dockContainer.classList.add('translate-y-full');
-        setTimeout(() => {
-             // Optional: Add hidden after animation if desired, but translate is usually enough
-             // Keeping it visible in DOM for animation smoothness
-        }, 500); 
     }
 
     if (onPaymentPage) renderCheckoutSummary();
